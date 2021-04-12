@@ -77,14 +77,15 @@ class detecter():
             modelc.load_state_dict(torch.load('weights/resnet101.pt', map_location=self.device)['model'])  # load weights
             modelc.to(self.device).eval()
 
-    def detect(self, img0):
+    def detect(self, img0, filter_list = []):
         with torch.no_grad():
             # Set Dataloader
             vid_path, vid_writer = None, None
             save_img = False
             # Get names and colors
             names = self.model.module.names if hasattr(self.model, 'module') else self.model.names
-            colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
+            # colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
+            colors = [[0,255,0] for _ in range(len(names))]
             # Run inference
             t0 = time.time()
             img = letterbox(img0, new_shape=self.imgsz)[0]
@@ -127,6 +128,16 @@ class detecter():
                         s += '%g %ss, ' % (n, names[int(c)])  # add to string
                         output.append(names[int(c)])
 
+                    # 過濾結果
+                    if len(filter_list) > 0:
+                        fliter = []
+                        for *_, cls in det:
+                            if int(cls) in filter_list:
+                                fliter.append(True)
+                            else:
+                                fliter.append(False)
+                        det = det[fliter,:]
+
                     # Write results
                     for *xyxy, conf, cls in det:
                         label = '%s %.2f' % (names[int(cls)], conf)
@@ -136,16 +147,16 @@ class detecter():
                 print('%sDone. (%.3fs)' % (output, t2 - t1))
 
             print('Done. (%.3fs)' % (time.time() - t0))
-        return im0
+        return im0, det
 
 if __name__ == '__main__':
     d = detecter(weights="./yolov5m.pt", conf_thres=0.3)
-    v = cv2.VideoCapture(0)
+    v = cv2.VideoCapture("./video/1.mp4")
     rat, img = v.read()
     while rat:
-        res = d.detect(img)
+        res, det = d.detect(img, filter_list=[0])
+        det = det.cpu().numpy()
         cv2.imshow('1', res)
         cv2.waitKey(1)
         rat, img = v.read()
-
     
